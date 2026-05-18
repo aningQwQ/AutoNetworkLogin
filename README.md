@@ -1,8 +1,9 @@
 # AutoNetworkLogin [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/aningQwQ/AutoNetworkLogin/blob/main/LICENSE)
 
-自动网络登录工具 - 基于PyQt6的系统托盘应用
+自动网络登录工具 - 基于PySide6的系统托盘应用
 
-<img width="529" height="475" alt="16ca743f6770cd24a0fd64cacfc1ade0" src="https://github.com/user-attachments/assets/9704fe5b-00e1-4cc9-8476-de14dd251d91" />
+<img width="514" height="489" alt="图片" src="https://github.com/user-attachments/assets/aabb40ad-9b19-4487-8cb5-93df8f7cfe96" />
+
 
 ## 功能特性
 
