@@ -24,3 +24,6 @@ config/network_config.yaml
 
 # Logs
 *.log
+
+# Docs
+README.md
