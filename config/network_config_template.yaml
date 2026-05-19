@@ -7,19 +7,17 @@ Settings:
   current_plugin: portal              # 当前使用的认证插件类型（portal 认证）
   forced_auto_reconnect: false        # 是否强制自动重连
   forced_periodic_login: false        # 是否强制周期性登录
+  network_interface: <YOUR_NETWORK_INTERFACE>   # 使用的网络接口名称（例如 eth0、wlan0）
   periodic_login_enabled: true        # 是否启用周期性登录
   periodic_login_interval: 600        # 周期性登录间隔（秒）
-  test_timeout: 5                     # 网络检测超时时间（秒）
-  test_url: http://www.baidu.com      # 网络连通性检测 URL
 
 # ============================================================
-# portal 认证插件专用配置（登录参数、请求头、URL、网卡绑定等）
+# portal 认证插件专用配置（登录参数、请求头、URL 等）
 # ============================================================
 plugin_configs:
   portal:
-    # ---------- 网卡绑定（由本插件管理）----------
-    bind_ip: auto                     # 网卡绑定：auto 自动选择，或指定网卡名（如 eno2、eth0）
-
+    test_timeout: 5                     # 网络检测超时时间（秒）
+    test_url: http://www.baidu.com      # 网络连通性检测 URL
     # ---------- 认证参数 ----------
     auth_tag: '<TIMESTAMP_PLACEHOLDER>'     # 认证时间戳（原值已打码）
     opr: pwdLogin                           # 操作类型：密码登录

@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                                 QLineEdit, QComboBox, QCheckBox,
-                                QGroupBox, QFormLayout, QPushButton)
+                                QGroupBox, QFormLayout, QPushButton, QSpinBox)
 from PySide6.QtCore import Qt, QTimer
 
 from plugin_base import ProtocolPlugin, ProtocolHandler
@@ -57,9 +57,10 @@ class PortalHandler(ProtocolHandler):
 
     def check_online(self) -> bool:
         """检测是否已在线"""
-        test_url = self.global_settings.get('test_url', 'http://www.baidu.com')
-        timeout = self.global_settings.get('test_timeout', 5)
-        bind_ip = self._get_current_bind_ip()
+        test_url = self.plugin_config.get('test_url', 'http://www.baidu.com')
+        timeout = self.plugin_config.get('test_timeout', 5)
+        force_bind = self.plugin_config.get('force_bind_check', False)
+        bind_ip = self._get_current_bind_ip() if force_bind else None
         return check_network_connectivity(test_url, bind_ip, timeout)
 
     def login(self) -> tuple[bool, str]:
@@ -147,33 +148,35 @@ class PortalConfigWidget(QWidget):
 
     def _create_template_config(self):
         template_content = '''# ============================================================
-# 总体设置（控制自动重连、检测、网卡等行为）
+# 总体设置（控制自动重连、检测、插件切换等全局行为）
 # ============================================================
 Settings:
   auto_reconnect: true                # 是否自动重连（网络断开后自动重新认证）
   check_interval: 60                  # 网络连通性检查间隔（秒），每60秒检测一次是否在线
-  current_plugin: portal              # 当前使用的认证插件类型（portal 认证）
-  forced_auto_reconnect: false        # 是否强制自动重连
-  forced_periodic_login: false        # 是否强制周期性登录
-  network_interface: <YOUR_NETWORK_INTERFACE>   # 使用的网络接口名称（例如 eth0、wlan0）
+  current_plugin: portal              # 当前使用的认证插件类型（portal / pppoe / 8021x 等）
+  forced_auto_reconnect: false        # 是否强制自动重连（UI 中禁用切换开关）
+  forced_periodic_login: false        # 是否强制周期性登录（UI 中禁用切换开关）
   periodic_login_enabled: true        # 是否启用周期性登录
   periodic_login_interval: 600        # 周期性登录间隔（秒）
-  test_timeout: 5                     # 网络检测超时时间（秒）
-  test_url: http://www.baidu.com      # 网络连通性检测 URL
 
 # ============================================================
-# portal 认证插件专用配置（登录参数、请求头、URL 等）
+# portal 认证插件专用配置（登录参数、请求头、URL、网卡等）
 # ============================================================
 plugin_configs:
   portal:
     # ---------- 网卡绑定 ----------
-    bind_ip: auto                     # 网卡绑定：auto 自动选择，或指定网卡名/IP
+    bind_ip: auto                     # 网卡绑定：auto 自动选择，或指定网卡名（如 eno2）
+
+    # ---------- 网络检测 ----------
+    test_url: http://www.baidu.com    # 网络连通性检测 URL
+    test_timeout: 5                   # 网络检测超时时间（秒）
+    force_bind_check: false           # 是否强制绑定网卡检测（默认关闭，使用系统默认路由检测；关闭可解决绑定网卡后检测失败但实际网络正常的问题）
 
     # ---------- 认证参数 ----------
     auth_tag: '<TIMESTAMP_PLACEHOLDER>'     # 认证时间戳（原值已打码）
-    opr: pwdLogin                           # 操作类型：密码登录
+    opr: pwdLogin                           # 操作类型：pwdLogin（密码登录）/ tokenLogin（令牌登录）等
     pwd: '<ENCRYPTED_PASSWORD_PLACEHOLDER>' # 加密后的密码（已打码）
-    remember_pwd: '1'                       # 是否记住密码
+    remember_pwd: '1'                       # 是否记住密码（1=记住，0=不记住）
     url: http://<PORTAL_SERVER_IP>/ac_portal/login.php   # 登录接口 URL（IP 已打码）
     userName: '<YOUR_USERNAME>'             # 登录用户名（已打码）
 
@@ -214,10 +217,8 @@ plugin_configs:
         self.interface_combo.addItem("自动", "auto")
         interfaces = get_network_interfaces()
         for name, ip in interfaces.items():
-            # data 存网卡名，用于配置保存（旧版逻辑）
             self.interface_combo.addItem(f"{name} ({ip})", name)
 
-        # 从插件配置中读取当前绑定设置（网卡名）
         current_bind = self.plugin_config.get('bind_ip', 'auto')
         if current_bind == 'auto':
             self.interface_combo.setCurrentIndex(0)
@@ -231,6 +232,31 @@ plugin_configs:
         iface_layout.addRow("选择网卡:", self.interface_combo)
 
         layout.addWidget(iface_group)
+
+        # ===== 网络检测设置组 =====
+        detect_group = QGroupBox("网络检测设置")
+        detect_layout = QFormLayout(detect_group)
+
+        self.test_url_input = QLineEdit()
+        self.test_url_input.setText(self.plugin_config.get('test_url', 'http://www.baidu.com'))
+        self.test_url_input.setPlaceholderText("例如: http://www.baidu.com")
+        self.test_url_input.textChanged.connect(self._on_detect_changed)
+        detect_layout.addRow("检测 URL:", self.test_url_input)
+
+        self.test_timeout_spin = QSpinBox()
+        self.test_timeout_spin.setRange(1, 60)
+        self.test_timeout_spin.setValue(self.plugin_config.get('test_timeout', 5))
+        self.test_timeout_spin.setSuffix(" 秒")
+        self.test_timeout_spin.valueChanged.connect(self._on_detect_changed)
+        detect_layout.addRow("检测超时:", self.test_timeout_spin)
+
+        self.force_bind_check = QCheckBox("强制绑定网卡检测")
+        self.force_bind_check.setChecked(self.plugin_config.get('force_bind_check', False))
+        self.force_bind_check.setToolTip("开启后网络检测会绑定到指定网卡 IP；关闭则使用系统默认路由检测\n关闭可解决绑定网卡后检测失败但实际网络正常的问题")
+        self.force_bind_check.stateChanged.connect(self._on_detect_changed)
+        detect_layout.addRow("", self.force_bind_check)
+
+        layout.addWidget(detect_group)
 
         # ===== 配置说明 =====
         info_label = QLabel("Portal 协议配置在 YAML 文件中编辑，修改后程序自动热更新。")
@@ -272,6 +298,14 @@ plugin_configs:
         运行时动态查 IP，网卡消失后自动回退 auto，重新出现后自动恢复。
         """
         self.plugin_config['bind_ip'] = self.interface_combo.currentData()
+        self._save_timer.stop()
+        self._save_timer.start(300)
+
+    def _on_detect_changed(self):
+        """检测 URL/超时/强制绑定变化 → 更新插件配置并防抖保存"""
+        self.plugin_config['test_url'] = self.test_url_input.text().strip()
+        self.plugin_config['test_timeout'] = self.test_timeout_spin.value()
+        self.plugin_config['force_bind_check'] = self.force_bind_check.isChecked()
         self._save_timer.stop()
         self._save_timer.start(300)
 
