@@ -96,6 +96,9 @@ class NetworkLoginApp(QMainWindow):
         self.config_monitor_timer.timeout.connect(self.check_config_update)
         self.config_monitor_timer.start(2000)
 
+        # 登录结果信号（一次性连接，线程安全）
+        self.login_result.connect(self.on_login_result)
+
     def _create_handler(self):
         """创建当前插件的协议处理器
 
@@ -160,6 +163,7 @@ class NetworkLoginApp(QMainWindow):
         for plugin in self.plugins:
             plugin_config = self.config_manager.get_plugin_config(plugin.plugin_id)
             widget = plugin.create_config_widget(plugin_config, self.config_manager.config_path)
+            widget.config_manager = self.config_manager
             self.stack.addWidget(widget)
             self.plugin_pages[plugin.plugin_id] = widget
 
@@ -266,7 +270,7 @@ class NetworkLoginApp(QMainWindow):
         idx = self.plugin_combo.findData(self.current_plugin_name)
         if idx >= 0:
             self.plugin_combo.setCurrentIndex(idx)
-        self.plugin_combo.currentTextChanged.connect(self.on_plugin_changed)
+        self.plugin_combo.currentIndexChanged.connect(self.on_plugin_changed)
 
         plugin_layout.addWidget(self.plugin_combo)
         plugin_layout.addStretch()
@@ -302,9 +306,10 @@ class NetworkLoginApp(QMainWindow):
                         self.stack.setCurrentIndex(i)
                         break
 
-    def on_plugin_changed(self, plugin_id):
+    def on_plugin_changed(self, index: int):
         """切换当前协议插件"""
-        if plugin_id == self.current_plugin_name:
+        plugin_id = self.plugin_combo.itemData(index)
+        if plugin_id is None or plugin_id == self.current_plugin_name:
             return
 
         self.current_plugin_name = plugin_id
@@ -467,7 +472,6 @@ class NetworkLoginApp(QMainWindow):
             self.log("错误：无可用协议处理器")
             return
 
-        self.login_result.connect(self.on_login_result, Qt.ConnectionType.UniqueConnection)
         worker_thread = threading.Thread(target=self._do_login_worker, daemon=True)
         worker_thread.start()
 
@@ -478,11 +482,6 @@ class NetworkLoginApp(QMainWindow):
             self.login_result.emit(message, success)
         except Exception as e:
             self.login_result.emit(f"错误: {str(e)}", False)
-        finally:
-            try:
-                self.login_result.disconnect(self.on_login_result)
-            except Exception:
-                pass
 
     def on_login_result(self, message, success):
         """登录结果处理"""
@@ -648,8 +647,6 @@ class NetworkLoginApp(QMainWindow):
             self.config_monitor_timer.stop()
         if hasattr(self, 'periodic_login_timer'):
             self.periodic_login_timer.stop()
-        if hasattr(self, 'interface_update_timer'):
-            self.interface_update_timer.stop()
         QApplication.quit()
 
 
