@@ -160,7 +160,6 @@ class PortalConfigWidget(QWidget):
             if idx >= 0:
                 self.interface_combo.setCurrentIndex(idx)
 
-        self.interface_combo.currentTextChanged.connect(self._on_interface_changed)
         self.interface_combo.currentIndexChanged.connect(self._on_interface_changed)
         iface_layout.addRow("选择网卡:", self.interface_combo)
 

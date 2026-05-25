@@ -196,6 +196,7 @@ plugin_configs:
         with open(self.config_path, 'w', encoding='utf-8') as f:
             yaml.dump(self.config, f, default_flow_style=False,
                       allow_unicode=True, indent=2)
+        self._last_modified = os.path.getmtime(self.config_path)
 
     def update_plugin_config(self, plugin_id: str, key: str, value: Any):
         """更新某个插件的配置项并实时保存
